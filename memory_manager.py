@@ -41,6 +41,10 @@ class MemoryManager:
         self.score_weights = np.array(SCORE_WEIGHTS)
         self.recency_decay = RECENCY_DECAY
 
+    def set_persona_description(self, persona_desc: str):
+        """NPC의 페르소나 설명을 설정"""
+        self.persona_description = persona_desc
+
     def _extract_keywords(self, description: str) -> set[str]:
         """키워드 추출"""
         prompt = (
@@ -55,7 +59,8 @@ class MemoryManager:
                    evidence_ids: list[str] = None):
         """새로운 메모리를 추가"""
         if importance == -1:
-            importance = self._calculate_importance(description)
+            # 중요도 계산 시 memory_type을 함께 전달
+            importance = self._calculate_importance(description, memory_type)
 
         embedding = self.llm_utils.get_embedding(description)
         keywords = self._extract_keywords(description)
@@ -86,14 +91,64 @@ class MemoryManager:
         self._save_memory_rooms()
         print(f"DEBUG (Add Memory): {new_memory}")
 
-    def _calculate_importance(self, description: str) -> int:
-        """중요도 계산"""
+    def _calculate_importance(self, description: str, memory_type: str) -> int:
+        """
+        기억의 종류(memory_type)에 따라 다른 프롬프트를 사용하여 중요도를 계산합니다.
+        (논문 프롬프트 참조: poignancy_event_v1.txt, poignancy_thought_v1.txt, poignancy_chat_v1.txt)
+        """
+        # 기본 프롬프트 구조
+        prompt_template = """
+          다음은 '{name}'에 대한 간략한 설명입니다.
+          {persona_description}
+
+          1점에서 10점까지의 척도에서, 다음 {memory_category}의 중요도를 평가해 주세요.
+          1점은 '{mundane_example}'처럼 지극히 평범한 것이며, 10점은 '{poignant_example}'처럼 매우 중대한 것입니다.
+
+          {memory_category_label}: {description}
+          점수 (1에서 10 사이의 숫자 하나만 반환):
+          """
+
+        # 기억 종류별 설정값
+        if memory_type == 'event':
+            settings = {
+                "memory_category": "사건",
+                "memory_category_label": "사건",
+                "mundane_example": "이를 닦거나 침대를 정리하는 것",
+                "poignant_example": "이별이나 대학 합격"
+            }
+        elif memory_type == 'thought':
+            settings = {
+                "memory_category": "생각",
+                "memory_category_label": "생각",
+                "mundane_example": "설거지를 해야 한다",
+                "poignant_example": "교수가 되고 싶다"
+            }
+        # 'chat'이나 'summary' 등 다른 타입도 'event'와 유사하게 처리
+        else:
+            settings = {
+                "memory_category": "대화 내용",
+                "memory_category_label": "대화",
+                "mundane_example": "일상적인 아침 인사",
+                "poignant_example": "이별에 대한 대화나 싸움"
+            }
+
+        # 최종 프롬프트 생성
+        prompt = prompt_template.format(
+            name=self.name,
+            persona_description=self.persona_description,
+            memory_category=settings["memory_category"],
+            mundane_example=settings["mundane_example"],
+            poignant_example=settings["poignant_example"],
+            memory_category_label=settings["memory_category_label"],
+            description=description
+        )
+
         try:
-            importance = int(self.llm_utils.get_llm_response(
-                f"'{self.name}'의 입장에서 다음 사건의 중요도를 1~10 사이 정수로 평가해줘: '{description}'",
-                0.0, 3))
+            response = self.llm_utils.get_llm_response(prompt, temperature=0.0, max_tokens=3)
+            importance = int(response)
             return max(1, min(10, importance))
-        except Exception:
+        except (ValueError, TypeError):
+            # LLM이 숫자가 아닌 다른 답변을 할 경우를 대비한 기본값
             return 5
 
     def _summarize_short_term(self):

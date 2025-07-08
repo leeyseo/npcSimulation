@@ -14,6 +14,7 @@ class NpcAgent:
 
         # 컴포넌트 초기화
         self.memory_manager = MemoryManager(llm_utils, name)
+        self.memory_manager.set_persona_description(persona)
         self.conversation_manager = ConversationManager(llm_utils)
 
         # 상태 정보
