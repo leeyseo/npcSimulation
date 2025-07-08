@@ -14,9 +14,10 @@ from config import (
 class MemoryManager:
     """메모리 관리를 담당하는 클래스"""
 
-    def __init__(self, llm_utils, name: str):
+    def __init__(self, llm_utils, name: str, persona_desc: str = ""):
         self.llm_utils = llm_utils
         self.name = name
+        self.persona_description = persona_desc
 
         # 메모리 저장소
         self.seq_event = []
@@ -36,10 +37,55 @@ class MemoryManager:
 
         self.short_term_memory_room = deque(maxlen=SHORT_TERM_MAXLEN)
         self.long_term_memory_room = []
+        
+        # ▼ [추가 1] JSON → 메모리 복원
+        self._load_memory_rooms()
+
+        # ▼ [추가 2] 파일에 아무것도 없을 때만 기본 기억 생성
+        if not self.short_term_memory_room and not self.long_term_memory_room:
+            self.add_memory('event', f"나의 이름은 '{name}'이다.", 10)
+            self.add_memory('event', f"나의 성격 및 설정: '{self.persona_description}'", 10)
+            # self.add_memory('thought', f"[목표] 나의 현재 목표는 '{self.current_goal}'이다.", 9)
+        
 
         # 점수 가중치
         self.score_weights = np.array(SCORE_WEIGHTS)
         self.recency_decay = RECENCY_DECAY
+        
+        # ───────────────────────── JSON 로드 ─────────────────────────
+    def _load_memory_rooms(self):
+        """short_term.json, long_term.json을 읽어 메모리 객체로 복구"""
+        for path, target in [
+            (self.short_term_path, self.short_term_memory_room),
+            (self.long_term_path,  self.long_term_memory_room)
+        ]:
+            if not os.path.exists(path):
+                continue
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            for item in data:
+                mem = Memory(
+                    memory_type=item["type"],
+                    description=item["desc"],
+                    importance=item["imp"],
+                    embedding=self.llm_utils.get_embedding(item["desc"]),
+                    keywords=self._extract_keywords(item["desc"])
+                )
+                mem.timestamp = datetime.datetime.fromisoformat(item["ts"])
+                target.append(mem)
+
+                # 🔸 1) seq_event / seq_thought에도 넣기
+                if mem.type == 'event':
+                    self.seq_event.append(mem)
+                else:
+                    self.seq_thought.append(mem)
+
+                # 🔸 2) 키워드 인덱스 복구
+                for kw in mem.keywords:
+                    (self.kw_to_event if mem.type == 'event' else self.kw_to_thought)[kw].append(mem)
+                    self.kw_strength[kw] += mem.importance
+
 
     def set_persona_description(self, persona_desc: str):
         """NPC의 페르소나 설명을 설정"""

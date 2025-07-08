@@ -2,10 +2,10 @@
 # 설정 및 상수 정의
 
 # OpenAI API 키
-OPENAI_API_KEY = "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"
+OPENAI_API_KEY = "sk"
 
 # 메모리 설정
-SHORT_TERM_MAXLEN = 20          # 단기 큐 최대 길이
+SHORT_TERM_MAXLEN = 50          # 단기 큐 최대 길이
 SUMMARY_WINDOW = 10             # 요약 주기
 REFLECTION_THRESHOLD = 100      # 리플렉션 임계값
 
