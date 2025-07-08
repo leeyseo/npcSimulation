@@ -107,40 +107,91 @@ class MemoryManager:
         summary_mem = Memory("summary", summary_sentence, 8, embedding, keywords)
         self.long_term_memory_room.append(summary_mem)
 
+    def _normalize_scores(self, scores: dict) -> dict:
+        """점수 딕셔너리를 0과 1 사이로 정규화하는 도우미 함수"""
+        if not scores:
+            return {}
+
+        min_val = min(scores.values())
+        max_val = max(scores.values())
+        range_val = max_val - min_val
+
+        if range_val == 0:
+            return {k: 0.5 for k in scores}  # 모든 값이 같으면 중간값인 0.5로 설정
+
+        normalized_scores = {
+            key: (val - min_val) / range_val
+            for key, val in scores.items()
+        }
+        return normalized_scores
+
     def retrieve_memories(self, query: str, top_k: int = 5) -> list[Memory]:
-        """관련 메모리 검색"""
+        """
+        관련 메모리 검색 (논문 로직 적용 버전)
+        최근성(Recency), 중요도(Importance), 관련성(Relevance)을 종합하여 점수를 매깁니다.
+        """
         print(f"\nDEBUG (Retrieve): \"{query}\"와 관련된 기억 검색 중...")
-        query_keywords = self._extract_keywords(query)
-        print(f"DEBUG (Retrieve): 검색 키워드 -> {query_keywords}")
+
+        # --- 1. 모든 기억 노드 수집 ---
+        all_memories = (
+                self.seq_event + self.seq_thought +
+                list(self.short_term_memory_room) + self.long_term_memory_room
+        )
+        # 중복 제거 및 ID를 키로 하는 딕셔너리 생성
+        mem_map = {mem.id: mem for mem in all_memories}
+        if not mem_map:
+            return []
+
+        # --- 2. 세 가지 핵심 점수 계산 ---
         query_embedding = self.llm_utils.get_embedding(query)
 
-        # 모든 메모리 수집
-        all_memories = (
-                list(self.short_term_memory_room) + self.long_term_memory_room +
-                self.seq_event + self.seq_thought
-        )
+        recency_scores = {}
+        importance_scores = {}
+        relevance_scores = {}
 
-        # 키워드 기반 후보 선별
-        candidate_memories = set()
-        for kw in query_keywords:
-            candidate_memories.update(self.kw_to_event.get(kw, []))
-            candidate_memories.update(self.kw_to_thought.get(kw, []))
+        now = datetime.datetime.now()
+        for mem_id, mem in mem_map.items():
+            # 최근성 점수 계산
+            hours_since_access = (now - mem.last_accessed).total_seconds() / 3600
+            recency_scores[mem_id] = pow(self.recency_decay, hours_since_access)
 
-        if not candidate_memories:
-            candidate_memories = set(all_memories)
+            # 중요도 점수 계산
+            importance_scores[mem_id] = mem.importance
 
-        # 점수 계산 및 정렬
-        scores = []
-        for mem in candidate_memories:
-            recency_score = pow(self.recency_decay,
-                                (datetime.datetime.now() - mem.last_accessed).total_seconds() / 3600)
-            importance_score = mem.importance / 10.0
-            relevance_score = self._cosine_similarity(query_embedding, mem.embedding)
-            final_score = np.dot(np.array([recency_score, relevance_score, importance_score]), self.score_weights)
-            scores.append((final_score, mem))
+            # 관련성 점수 계산
+            relevance_scores[mem_id] = self._cosine_similarity(query_embedding, mem.embedding)
 
-        scores.sort(key=lambda x: x[0], reverse=True)
-        retrieved = [m for _, m in scores[:top_k]]
+        # --- 3. 점수 정규화 ---
+        # 각 점수 셋을 0과 1 사이로 정규화하여 공평하게 비교할 수 있도록 만듭니다.
+        norm_recency = self._normalize_scores(recency_scores)
+        norm_importance = self._normalize_scores(importance_scores)
+        norm_relevance = self._normalize_scores(relevance_scores)
+
+        # --- 4. 최종 점수 계산 (가중 합산) ---
+        # 가중치: [최근성, 관련성, 중요도]. 논문 예시를 참고하여 설정합니다.
+        # 이 값들을 조절하여 NPC의 기억 성향을 바꿀 수 있습니다.
+        weights = [0.5, 3.0, 2.0]
+
+        final_scores = {}
+        for mem_id in mem_map:
+            final_scores[mem_id] = (
+                    weights[0] * norm_recency.get(mem_id, 0) +
+                    weights[1] * norm_relevance.get(mem_id, 0) +
+                    weights[2] * norm_importance.get(mem_id, 0)
+            )
+
+        # --- 5. 최상위 기억 선택 및 반환 ---
+        # 최종 점수에 따라 메모리 ID를 정렬
+        sorted_mems = sorted(final_scores.items(), key=lambda item: item[1], reverse=True)
+
+        # 상위 top_k개의 메모리 객체를 가져옵니다.
+        retrieved_ids = [mem_id for mem_id, score in sorted_mems[:top_k]]
+        retrieved = [mem_map[mem_id] for mem_id in retrieved_ids]
+
+        # 인출된 기억의 마지막 접근 시간을 갱신
+        for mem in retrieved:
+            mem.last_accessed = datetime.datetime.now()
+
         print(f"DEBUG (Retrieve): 최종 상위 기억 {len(retrieved)}개:\n{[m.description for m in retrieved]}\n")
         return retrieved
 
@@ -221,7 +272,8 @@ class MemoryManager:
                         emb = self.llm_utils.get_embedding(concept)
                         self.knowledge_base[concept] = Knowledge(concept, desc, emb)
                         print(f"DEBUG (Knowledge): 새로운 지식 추가! -> {self.knowledge_base[concept]}")
-                        self.add_memory('thought', f"[지식 습득] '{concept}'은(는) '{desc}'라는 것을 알게 되었다.", 7)
+                        print(f'thought', f"[지식 습득] '{concept}'은(는) '{desc}'라는 것을 알게 되었다.")
+
         except json.JSONDecodeError:
             print(f"DEBUG (Knowledge): 지식 추출 실패. 응답: {response_str}")
 

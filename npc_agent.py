@@ -72,7 +72,8 @@ class NpcAgent:
     def _generate_response(self, player_input: str, memory_context: str, knowledge_context: str) -> str:
         """응답 생성"""
         response_prompt = f"""
-        너는 '{self.name}'({self.persona})이고 현재 감정은 '{self.current_emotion}'이야.
+        너는 '{self.name}'({self.persona})이야
+        
 
         ### 현재 대화의 핵심 흐름 ###
         {self.conversation_manager.get_conversation_summary()}
