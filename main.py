@@ -7,7 +7,7 @@ from npc_agent import NpcAgent
 def main():
     """메인 실행 함수"""
     # API 키 확인
-    if not OPENAI_API_KEY or OPENAI_API_KEY == "sk":
+    if not OPENAI_API_KEY or OPENAI_API_KEY == "sk-":
         print("!!! OpenAI API 키를 config.py 파일에 입력해주세요. !!!")
         return
 
