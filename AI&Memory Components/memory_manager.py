@@ -5,7 +5,7 @@ import os
 import numpy as np
 from collections import defaultdict, deque
 from data_structures import Memory, Knowledge
-from config import (
+from CoreSystemFiles.config import (
     SHORT_TERM_MAXLEN, SUMMARY_WINDOW, MEMORY_DIR,
     SHORT_TERM_FILE, LONG_TERM_FILE, SCORE_WEIGHTS, RECENCY_DECAY
 )

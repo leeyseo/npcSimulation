@@ -3,7 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 import uvicorn
-import asyncio
 from threading import Lock
 
 from config import OPENAI_API_KEY

@@ -1,7 +1,7 @@
 # npc_agent.py
 from memory_manager import MemoryManager
 from conversation_manager import ConversationManager
-from config import REFLECTION_THRESHOLD
+from CoreSystemFiles.config import REFLECTION_THRESHOLD
 
 
 class NpcAgent:

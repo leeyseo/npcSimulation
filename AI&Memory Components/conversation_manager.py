@@ -1,6 +1,6 @@
 # conversation_manager.py
 from collections import deque
-from config import CONVERSATION_BUFFER_SIZE
+from CoreSystemFiles.config import CONVERSATION_BUFFER_SIZE
 
 
 class ConversationManager:
