@@ -14,7 +14,7 @@ SCORE_WEIGHTS = [0.5, 1.5, 2.0]  # [recency, relevance, importance]
 RECENCY_DECAY = 0.995
 
 # 파일 경로
-MEMORY_DIR = "../memory_room"
+MEMORY_DIR = "memory_room"
 SHORT_TERM_FILE = "short_term.json"
 LONG_TERM_FILE = "long_term.json"
 

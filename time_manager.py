@@ -2,7 +2,7 @@
 import datetime
 import threading
 import time
-from CoreSystemFiles.config import DEFAULT_TIME_SPEED, GAME_START_TIME
+from config import DEFAULT_TIME_SPEED, GAME_START_TIME
 
 
 class TimeManager:

@@ -1,5 +1,5 @@
 # main.py
-from CoreSystemFiles.config import OPENAI_API_KEY
+from config import OPENAI_API_KEY
 from llm_utils import LLM_Utils
 from npc_agent import NpcAgent
 

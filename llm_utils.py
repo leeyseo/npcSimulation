@@ -1,7 +1,7 @@
 # llm_utils.py
 import openai
 import time
-from CoreSystemFiles.config import EMBEDDING_MODEL, CHAT_MODEL
+from config import EMBEDDING_MODEL, CHAT_MODEL
 
 
 class LLM_Utils:

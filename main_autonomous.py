@@ -9,9 +9,10 @@ import os
 import argparse
 from datetime import datetime
 
-# 프로젝트 루트를 Python 경로에 추가
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# 프로젝트 루트(D:\npcSimul)를 Python 경로에 추가
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# 폴더 경로를 포함하여 임포트
 from config_autonomous import *
 from llm_utils import LLM_Utils
 from npc_agent_autonomous import AutonomousNpcAgent

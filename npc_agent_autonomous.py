@@ -4,7 +4,7 @@ from conversation_manager import ConversationManager
 from autonomous_planner import AutonomousPlanner
 from action_executor import ActionExecutor
 from time_manager import time_manager
-from CoreSystemFiles.config import REFLECTION_THRESHOLD
+from config import REFLECTION_THRESHOLD
 
 
 class AutonomousNpcAgent:
