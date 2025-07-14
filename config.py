@@ -2,7 +2,7 @@
 # 기존 설정들 + 자율 행동 시스템 설정
 
 # OpenAI API 키
-OPENAI_API_KEY = "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"
+OPENAI_API_KEY = "sk"
 
 # 메모리 설정
 SHORT_TERM_MAXLEN = 50          # 단기 큐 최대 길이
