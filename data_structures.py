@@ -7,7 +7,7 @@ class Memory:
     """메모리 데이터 구조"""
 
     def __init__(self, memory_type: str, description: str, importance: int,
-                 embedding: list[float], keywords: set, evidence_ids: list[str] = None):
+                 embedding: list[float], keywords: set, evidence_ids: list[str] = None,emotion=None, strategy=None, personality=None):
         self.id = str(uuid.uuid4())
         self.type = memory_type
         self.timestamp = datetime.datetime.now()
@@ -17,6 +17,9 @@ class Memory:
         self.keywords = keywords
         self.last_accessed = datetime.datetime.now()
         self.evidence_ids = evidence_ids if evidence_ids else []
+        self.emotion = emotion
+        self.strategy = strategy
+        self.personality = personality
 
     def __repr__(self):
         return f"Memory(ID: {self.id[-6:]}, Type: {self.type}, Desc: '{self.description}', Imp: {self.importance})"

@@ -44,12 +44,23 @@ class NpcAgent:
         relevant_memories = self.memory_manager.retrieve_memories(player_input)
         relevant_knowledge = self.memory_manager.retrieve_knowledge(player_input)
 
+        # ▶️ 메타 정보 추출
+        meta_lines = []
+        for m in relevant_memories:
+            if hasattr(m, "strategy") and m.strategy:
+                meta_lines.append(f"AI 전략: {m.strategy}")
+            if hasattr(m, "emotion") and m.emotion:
+                meta_lines.append(f"사용자 감정: {m.emotion}")
+            if hasattr(m, "personality") and m.personality:
+                meta_lines.append(f"사용자 성격: {m.personality}")
+        meta_context = "\n".join(meta_lines)
+
         # 컨텍스트 생성
         memory_context = "\n".join([f"- {m.description}" for m in relevant_memories])
         knowledge_context = "\n".join(relevant_knowledge)
 
-        # 응답 생성
-        response = self._generate_response(player_input, memory_context, knowledge_context)
+        # 응답 생성 (meta_context 추가)
+        response = self._generate_response(player_input, memory_context, knowledge_context, meta_context)
 
         # 기억 추가
         self.memory_manager.add_memory('event', f"플레이어가 나에게 '{player_input}'라고 말했다.")
@@ -63,18 +74,23 @@ class NpcAgent:
         interaction = f"Player: {player_input}\n{self.name}: {response}"
         learned_concepts = self.memory_manager.learn_from_interaction(interaction)
 
-        # 새로 학습한 지식에 대한 메모리 추가
         if learned_concepts and isinstance(learned_concepts, dict):
             for concept, desc in learned_concepts.items():
-                self.memory_manager.add_memory('thought', f"[지식 습득] '{concept}'은(는) '{desc}'라는 것을 알게 되었다.", 7)
+                self.memory_manager.add_memory('thought',
+                    f"[지식 습득] '{concept}'은(는) '{desc}'라는 것을 알게 되었다.", 7)
 
         return response
 
-    def _generate_response(self, player_input: str, memory_context: str, knowledge_context: str) -> str:
-        """응답 생성"""
+    def _generate_response(self, player_input: str,
+                        memory_context: str,
+                        knowledge_context: str,
+                        meta_context: str = "") -> str:
+        """응답 생성 (메타 정보 포함)"""
         response_prompt = f"""
         너는 '{self.name}'({self.persona})이야
-        
+
+        ### 사용자 메타 정보 ###
+        {meta_context}
 
         ### 현재 대화의 핵심 흐름 ###
         {self.conversation_manager.get_conversation_summary()}
@@ -89,10 +105,10 @@ class NpcAgent:
         플레이어가 방금 너에게 이렇게 말했어: "{player_input}"
 
         ### 지시문 ###
-        위의 모든 정보(특히 '현재 대화의 핵심 흐름')를 가장 중요하게 고려하여,
+        위의 모든 정보(특히 '사용자 메타 정보'와 '현재 대화의 핵심 흐름')를 가장 중요하게 고려하여,
         플레이어에게 할 가장 자연스러운 다음 응답을 한 문장으로 생성해줘.
         """
-
+        
         return self.llm_utils.get_llm_response(response_prompt)
 
     def perform_reflection(self):

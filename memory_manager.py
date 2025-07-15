@@ -25,7 +25,7 @@ class MemoryManager:
         self.kw_to_event = defaultdict(list)
         self.kw_to_thought = defaultdict(list)
         self.kw_strength = defaultdict(int)
-
+ 
         # 지식 베이스
         self.knowledge_base: dict[str, Knowledge] = {}
 
@@ -57,22 +57,30 @@ class MemoryManager:
         """short_term.json, long_term.json을 읽어 메모리 객체로 복구"""
         for path, target in [
             (self.short_term_path, self.short_term_memory_room),
-            (self.long_term_path,  self.long_term_memory_room)
+            (self.long_term_path, self.long_term_memory_room)
         ]:
             if not os.path.exists(path):
                 continue
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
+
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except (json.JSONDecodeError, ValueError):
+                print(f"⚠️ 경고: '{path}' 파일이 비어있거나 JSON 형식이 아닙니다. 무시하고 계속 진행합니다.")
+                data = []
 
             for item in data:
                 mem = Memory(
-                    memory_type=item["type"],
-                    description=item["desc"],
-                    importance=item["imp"],
-                    embedding=self.llm_utils.get_embedding(item["desc"]),
-                    keywords=self._extract_keywords(item["desc"])
+                    memory_type=item.get("type", "event"),
+                    description=item.get("desc", ""),
+                    importance=item.get("imp", 5),
+                    embedding=self.llm_utils.get_embedding(item.get("desc", "")),
+                    keywords=self._extract_keywords(item.get("desc", ""))
                 )
-                mem.timestamp = datetime.datetime.fromisoformat(item["ts"])
+                mem.timestamp = datetime.datetime.fromisoformat(item.get("ts", datetime.datetime.now().isoformat()))
+                mem.emotion = item.get("emotion")
+                mem.strategy = item.get("strategy")
+                mem.personality = item.get("personality")
                 target.append(mem)
 
                 # 🔸 1) seq_event / seq_thought에도 넣기
@@ -85,6 +93,7 @@ class MemoryManager:
                 for kw in mem.keywords:
                     (self.kw_to_event if mem.type == 'event' else self.kw_to_thought)[kw].append(mem)
                     self.kw_strength[kw] += mem.importance
+
 
 
     def set_persona_description(self, persona_desc: str):
@@ -198,14 +207,59 @@ class MemoryManager:
             return 5
 
     def _summarize_short_term(self):
-        """단기 메모리를 요약하여 장기 메모리로 이관"""
+        """단기 메모리를 요약하여 장기 메모리로 이관 + 메타 정보 포함"""
         joined = "\n".join([m.description for m in self.short_term_memory_room])
-        prompt = f"다음 사건들의 핵심을 한 문장으로 요약해줘:\n{joined}\n\n[요약]"
-        summary_sentence = self.llm_utils.get_llm_response(prompt, temperature=0.3, max_tokens=60)
 
+        # ① 요약 문장 생성
+        summary_sentence = self.llm_utils.get_llm_response(
+            f"다음 사건들의 핵심을 한 문장으로 요약해줘:\n{joined}\n\n[요약]",
+            temperature=0.3, max_tokens=60
+        )
+
+        # ② 메타 정보 추출 프롬프트
+        meta_prompt = f"""
+    다음 대화 내용을 기반으로 사용자에 대한 다음 정보를 각각 한 문장으로 요약해줘:
+    - Emotion (감정): 현재 사용자 감정 상태
+    - Strategy (전략): 이 사용자에게 적절한 AI 대응 방식
+    - Personality (성격): 사용자의 성격적 특징
+
+    형식은 아래처럼 반환해줘:
+
+    Emotion: ...
+    Strategy: ...
+    Personality: ...
+
+    [대화 내용]
+    {joined}
+        """
+
+        meta_response = self.llm_utils.get_llm_response(
+            meta_prompt, temperature=0.3, max_tokens=150
+        )
+
+        # ③ 메타 정보 파싱
+        emotion = strategy = personality = None
+        for line in meta_response.splitlines():
+            if line.lower().startswith("emotion:"):
+                emotion = line.partition(":")[2].strip()
+            elif line.lower().startswith("strategy:"):
+                strategy = line.partition(":")[2].strip()
+            elif line.lower().startswith("personality:"):
+                personality = line.partition(":")[2].strip()
+
+        # ④ 메모리 생성 및 저장
         embedding = self.llm_utils.get_embedding(summary_sentence)
         keywords = self._extract_keywords(summary_sentence)
-        summary_mem = Memory("summary", summary_sentence, 8, embedding, keywords)
+        summary_mem = Memory(
+            memory_type="summary",
+            description=summary_sentence,
+            importance=8,
+            embedding=embedding,
+            keywords=keywords,
+            emotion=emotion,
+            strategy=strategy,
+            personality=personality
+        )
         self.long_term_memory_room.append(summary_mem)
 
     def _normalize_scores(self, scores: dict) -> dict:
@@ -392,7 +446,10 @@ class MemoryManager:
                 "type": mem.type,
                 "desc": mem.description,
                 "imp": mem.importance,
-                "ts": mem.timestamp.isoformat()
+                "ts": mem.timestamp.isoformat(),
+                "emotion": mem.emotion,
+                "strategy": mem.strategy,
+                "personality": mem.personality,
             }
 
         with open(self.short_term_path, "w", encoding="utf-8") as f:

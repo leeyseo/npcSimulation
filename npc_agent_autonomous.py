@@ -163,10 +163,26 @@ class AutonomousNpcAgent:
         return response
 
     def _generate_contextual_response(self, player_input: str, memory_context: str,
-                                      knowledge_context: str, situation_context: str) -> str:
-        """상황을 고려한 응답 생성"""
+                                    knowledge_context: str, situation_context: str) -> str:
+        """상황을 고려한 응답 생성 (메타 정보 포함)"""
+
+        # 🔸 회상 메모리에서 메타 정보 추출
+        meta_lines = []
+        for m in self.memory_manager.retrieve_memories(player_input, top_k=5):
+            if hasattr(m, "strategy") and m.strategy:
+                meta_lines.append(f"AI 전략: {m.strategy}")
+            if hasattr(m, "emotion") and m.emotion:
+                meta_lines.append(f"사용자 감정: {m.emotion}")
+            if hasattr(m, "personality") and m.personality:
+                meta_lines.append(f"사용자 성격: {m.personality}")
+        meta_context = "\n".join(meta_lines)
+
+        # 🔸 최종 프롬프트 구성
         response_prompt = f"""
         너는 '{self.name}'({self.persona})이야
+
+        ### 회상된 메타 정보 ###
+        {meta_context}
 
         ### 현재 상황 ###
         {situation_context}
@@ -184,13 +200,14 @@ class AutonomousNpcAgent:
         플레이어가 방금 너에게 이렇게 말했어: "{player_input}"
 
         ### 지시문 ###
-        위의 모든 정보(특히 '현재 상황'과 '현재 대화의 핵심 흐름')를 고려하여,
+        위의 모든 정보(특히 '현재 상황', '메타 정보', '대화 흐름')를 고려하여,
         플레이어에게 할 가장 자연스러운 다음 응답을 한 문장으로 생성해줘.
         현재 하던 일이나 감정 상태를 자연스럽게 반영해서 대답해.
         """
 
         return self.llm_utils.get_llm_response(response_prompt)
-
+    
+    
     def _handle_interaction_end(self, player_input: str, response: str):
         """상호작용 종료 후 처리"""
         # 기억 추가
