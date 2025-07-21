@@ -400,3 +400,24 @@ class MemoryManager:
 
         with open(self.long_term_path, "w", encoding="utf-8") as f:
             json.dump([_to_dict(m) for m in self.long_term_memory_room], f, ensure_ascii=False, indent=2)
+
+
+    def retrieve_recent_memories(self, count: int = 5) -> list[Memory]:
+        """
+        가장 최근의 기억(이벤트 및 생각)을 지정된 수만큼 가져옵니다.
+        """
+        print(f"\nDEBUG (Retrieve Recent): 가장 최근 기억 {count}개 검색 중...")
+
+        # 모든 이벤트와 생각 기억을 하나의 리스트로 합칩니다.
+        all_memories = self.seq_event + self.seq_thought
+
+        # 기억들을 생성 시간(timestamp)을 기준으로 최신순으로 정렬합니다.
+        # memory.timestamp가 최신일수록 뒤에 오므로, reverse=True로 순서를 뒤집습니다.
+        sorted_memories = sorted(all_memories, key=lambda mem: mem.timestamp, reverse=True)
+
+        # 가장 최근의 기억을 count만큼 잘라서 반환합니다.
+        recent_memories = sorted_memories[:count]
+
+        print(f"DEBUG (Retrieve Recent): 검색된 최근 기억 {len(recent_memories)}개:\n{[m.description for m in recent_memories]}\n")
+        return recent_memories
+
