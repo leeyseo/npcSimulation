@@ -35,6 +35,9 @@ class AutonomousNpcAgent:
         self.last_autonomous_update = None
         self.autonomous_update_interval = 60  # 60초마다 업데이트
 
+        # ⭐ 추가: Unity로부터 월드 정보를 받아 계획 수립이 가능한지 여부
+        self.is_ready_for_planning = False
+
         # 리플렉션 관련
         self.reflection_importance_sum = 0
         self.reflection_threshold = REFLECTION_THRESHOLD
@@ -55,6 +58,14 @@ class AutonomousNpcAgent:
         self.memory_manager.add_memory('event', f"나의 이름은 '{self.name}'이다.", 10)
         self.memory_manager.add_memory('event', f"나의 성격 및 설정: '{self.persona}'", 10)
         self.memory_manager.add_memory('thought', f"[목표] 나의 현재 목표는 '{self.current_goal}'이다.", 9)
+
+    def update_emotion(self, new_emotion: str):
+        """감정 상태 업데이트"""
+        old_emotion = self.current_emotion
+        self.current_emotion = new_emotion
+
+        print(f"[AutonomousNPC] {self.name}: 감정 변화 '{old_emotion}' → '{new_emotion}'")
+
 
     def _on_hour_change(self, current_time):
         """시간 변화 시 호출되는 콜백"""
@@ -86,6 +97,9 @@ class AutonomousNpcAgent:
         )
 
     def autonomous_update(self):
+        """자율 행동 업데이트 (주기적으로 호출)"""
+
+
         """자율 행동 업데이트 (주기적으로 호출)"""
         current_time = time_manager.get_current_time()
 
