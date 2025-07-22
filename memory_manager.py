@@ -401,15 +401,15 @@ class MemoryManager:
         {list(self.knowledge_base.keys())}
 
         [지시]
-        위 대화에서 '{self.name}'가 '새롭게' 알게 된 중요한 사실을 JSON 객체로 추출해줘.
+        위 대화에서 '{self.name}'가 '새롭게' 알게 된 중요한 사실을 JSON 객체로 추출해줘. **플레이어에 대해 새로 알게 된 '속성:값'** 쌍만 JSON 객체로 추출해 줘.
         - **고유명사:** 사람 이름, 장소, 특정 과목명 등.
         - **관계적 의미:** 일반적인 단어지만 이 대화의 맥락에서 특별한 의미를 갖게 된 경우.
         설명은 반드시 플레이어와의 관계를 중심으로 작성해야 합니다.
 
         - **좋은 예시 1 (고유명사):** 플레이어가 "저는 컴공을 전공하는 경우입니다" 라고 말했다면,
-          결과는 {{"경우": "플레이어의 이름", "컴공": "플레이어가 전공하고 있는 학과"}} 이어야 합니다.
+          결과는 {{"플레이어의 이름": "경우", "플레이어가 전공하고 있는 학과": "컴공"}} 이어야 합니다.
         - **좋은 예시 2 (관계적 의미):** 플레이어가 "제 졸업 작품은 저의 '흰고래'예요" 라고 말했다면,
-          결과는 {{"흰고래": "플레이어가 자신의 어렵고 중요한 졸업 작품을 비유적으로 표현하는 말"}} 이어야 합니다.
+          결과는 {{"플레이어가 자신의 어렵고 중요한 졸업 작품을 비유적으로 표현하는 말" : "흰고래"}} 이어야 합니다.
         - **나쁜 예시 (일반 사실):** 플레이어가 "하늘은 파랗다" 라고 말했다면, 결과는 {{}} 이어야 합니다.
 
         새로 알게 된 사실이 없다면, 빈 JSON 객체 {{}}를 반환해.
@@ -417,17 +417,41 @@ class MemoryManager:
 
         [JSON 출력]
         """
+
+        
         response_str = self.llm_utils.get_llm_response(prompt, temperature=0.1, max_tokens=500, is_json=True)
 
         try:
             new_knowledge = json.loads(response_str)
             if new_knowledge:
                 for concept, desc in new_knowledge.items():
-                    if concept not in self.knowledge_base:
+                    # 이미 알고 있던 개념인가?
+                    if concept in self.knowledge_base:
+                        know = self.knowledge_base[concept]
+
+                        # 설명이 달라졌으면 → 정정(덮어쓰기)
+                        if know.description != desc:
+                            know.description = desc
+                            know.embedding   = self.llm_utils.get_embedding(concept)
+
+                            print(f"DEBUG (Knowledge): '{concept}' 정의 수정 -> {desc}")
+                            self.add_memory(
+                                'thought',
+                                f"[지식 수정] '{concept}' 정의가 '{desc}'로 업데이트되었다.",
+                                importance=6
+                            )
+
+                    # 완전히 새로운 개념이면 → 기존 로직과 동일
+                    else:
                         emb = self.llm_utils.get_embedding(concept)
                         self.knowledge_base[concept] = Knowledge(concept, desc, emb)
+
                         print(f"DEBUG (Knowledge): 새로운 지식 추가! -> {self.knowledge_base[concept]}")
-                        print(f'thought', f"[지식 습득] '{concept}'은(는) '{desc}'라는 것을 알게 되었다.")
+                        self.add_memory(
+                            'thought',
+                            f"[지식 습득] '{concept}'은(는) '{desc}'라는 것을 알게 되었다.",
+                            importance=5
+                        )
 
         except json.JSONDecodeError:
             print(f"DEBUG (Knowledge): 지식 추출 실패. 응답: {response_str}")
